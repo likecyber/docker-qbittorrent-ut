@@ -1,0 +1,49 @@
+name: update-upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '0 * * * *'
+
+jobs:
+  do-work:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Config
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Do Work
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY:       ${{ github.event.repository.name }}
+          PERSONAL_TOKEN:   ${{ secrets.PERSONAL_TOKEN }}
+          GITHUB_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          while IFS= read -r BRANCH; do
+            git clone -b "${BRANCH}" "https://${PERSONAL_TOKEN}@github.com/${REPOSITORY_OWNER}/${REPOSITORY}.git"
+            cd "${REPOSITORY}" || exit 1
+            ###########################################
+            upstream_tag_sha_old="$(jq -r '.upstream_tag_sha' < meta.json)"
+            if [[ -f update-upstream.sh ]]; then
+              bash update-upstream.sh || true
+            else
+              continue
+            fi
+            if upstream_tag_sha_new="$(jq -re '.upstream_tag_sha' < meta.json)"; then
+              commit_message="Upstream update: ${upstream_tag_sha_old} => ${upstream_tag_sha_new}"
+              discord_message="Upstream changes detected: \`${upstream_tag_sha_old}\` => \`${upstream_tag_sha_new}\`"
+            else
+              commit_message="Upstream digest update"
+              discord_message="Upstream digest changes detected."
+            fi
+            [[ "${BRANCH}" == *pr ]] && commit_message="${commit_message} [skip ci]"
+            git add meta.json
+            if git commit -m "${commit_message}"; then
+              git push
+            fi
+            ###########################################
+            cd .. || exit 1
+            rm -rf "${REPOSITORY}"
+          done < <(curl -fsSL --header "Authorization: Bearer ${GITHUB_TOKEN}" "https://api.github.com/repos/${REPOSITORY_OWNER}/${REPOSITORY}/branches" | jq -re '.[] | select(.name!="master") | .name')
