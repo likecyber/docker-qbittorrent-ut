@@ -10,6 +10,6 @@
   "test_url": "http://localhost:8080",
   "upstream_image": "ghcr.io/hotio/base",
   "upstream_tag": "alpinevpn",
-  "upstream_tag_sha": "alpinevpn-f0a9b4f",
+  "upstream_tag_sha": "alpinevpn-52645b0",
   "version": "5.1.4"
 }
